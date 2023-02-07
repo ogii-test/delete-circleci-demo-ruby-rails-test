@@ -1,51 +1,126 @@
 version: 2.1
 
 orbs:
-  ruby: circleci/ruby@1.1.0
-  node: circleci/node@2
+  ruby: circleci/ruby@1.8.0
+  node: circleci/node@5.0.2
+  browser-tools: circleci/browser-tools@1.3.0
+  
+references:
+  working_directory: &working_directory ~/app_root
+  images:
+    base_image: &base_image
+      image: 'cimg/ruby:2.7.6-node'
+      environment:
+        BUNDLE_JOBS: 4
+        BUNDLE_RETRY: 1
+        BUNDLE_PATH: vendor/bundle
+        CIRCLE_TEST_RESULTS: tmp/ci_test_results
+        TZ: "/usr/share/zoneinfo/America/Los_Angeles"
+        PGHOST: 127.0.0.1
+        PGUSER: ci_user
+        RAILS_ENV: test
+        DATABASE_URL: postgres://ci_user@127.0.0.1/test
+        REDIS_URL: redis://localhost:6379/0/test
+        RSPEC_RETRY_COUNT: 0
+        COVERAGE: true
+        # CC_TEST_REPORTER_ID: CIRCLE_CI_ENV_VARIABLE
+        CIRCLE_ARTIFACTS: ./tmp
+  restore_cc: &restore_cc
+    restore_cache:
+      name: Restore CC cache
+      key: cc-test-reporter
 
+  run_cc: &run_cc
+    run:
+      name:  Download cc-test-reporter
+      command: ./.circleci/download_cc_reporter.sh
+
+  cache_cc: &cache_cc
+    save_cache:
+      name: Store CC cache
+      key: cc-test-reporter
+      paths:
+        - ./tmp/cc-test-reporter
+  persist_workspace: &persist_workspace
+    persist_to_workspace:
+      root: *working_directory
+      paths:
+        - ./*
+
+  restore_gems: &restore_gems
+    restore_cache:
+      keys:
+        - gems-cache-v2-{{ .BuildNum }}
+
+  setting_bundle_config: &set_bundle_config
+    run:
+      command: bundle config github.com $GITHUB_GEM_TOKEN
+
+  install_gems: &install_gems
+    run:
+      name: Bundle Install
+      command: bundle check --path=vendor/bundle || bundle install --path vendor/bundle
+
+  cache_gems: &cache_gems
+    save_cache:
+      key: gems-cache-v2-{{ checksum "Gemfile.lock" }}
+      paths:
+        - vendor/bundle
+
+  restore_yarn: &restore_yarn
+    restore_cache:
+      keys:
+        - yarn-cache-{{ checksum "yarn.lock" }}
+
+  install_yarn: &install_yarn
+    run:
+      name: Yarn Install
+      command: yarn install --frozen-lockfile --prefer-offline --cache-folder vendor/yarn --non-interactive
+
+  cache_yarn: &cache_yarn
+    save_cache:
+      key: yarn-cache-{{ checksum "yarn.lock" }}
+      paths:
+        - vendor/yarn
+        - node_modules
+        
+  checkout_workspace: &checkout_workspace
+    checkout
+
+  wait_for_db: &wait_for_db
+    run:
+      name: Wait for DB
+      command: dockerize -wait tcp://localhost:5432 -timeout 1m
+
+  setup_db: &setup_db
+    run:
+      name: Database setup
+      command: bin/rails db:create db:schema:load
+
+  wait_for_mysql_db: &wait_for_mysql_db
+    run:
+      name: Wait for MySql DB
+      command: dockerize -wait tcp://localhost:3306 -timeout 1m
+
+  setup_mysql_db: &setup_mysql_db
+    run:
+      name: MySql Database setup
+      command: bundle exec rake mysql:db:create mysql:db:schema:load
+
+  wait_for_redis: &wait_for_redis
+    run:
+      name: Wait for redis
+      command: dockerize -wait tcp://localhost:6379 -timeout 1m
+  
 jobs:
-  build:
+  initial_build:
+    working_directory: *working_directory
     docker:
-      - image: cimg/ruby:2.7-node
+      - *base_image
     steps:
-      - checkout
-      - ruby/install-deps
-      # Store bundle cache
-      - node/install-packages:
-          pkg-manager: yarn
-          cache-key: "yarn.lock"
-  test:
-    parallelism: 3
-    docker:
-      - image: cimg/ruby:2.7-node
-      - image: circleci/postgres:9.5-alpine
-        environment:
-          POSTGRES_USER: circleci-demo-ruby
-          POSTGRES_DB: rails_blog_test
-          POSTGRES_PASSWORD: ""
-    environment:
-      BUNDLE_JOBS: "3"
-      BUNDLE_RETRY: "3"
-      PGHOST: 127.0.0.1
-      PGUSER: circleci-demo-ruby
-      PGPASSWORD: ""
-      RAILS_ENV: test
-    steps:
-      - checkout
-      - ruby/install-deps
-      - node/install-packages:
-          pkg-manager: yarn
-          cache-key: "yarn.lock"
-      - run:
-          name: Wait for DB
-          command: dockerize -wait tcp://localhost:5432 -timeout 1m
-      - run:
-          name: Database setup
-          command: bundle exec rails db:schema:load --trace
-      # Run rspec in parallel
-      - ruby/rspec-test
-      - ruby/rubocop-check
+      - *set_bundle_config
+      - run: node --version
+      - *install_gems
 
 workflows:
   version: 2
