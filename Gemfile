@@ -39,6 +39,7 @@ gem 'jbuilder', '~> 2.9.1'
 # https://github.com/rubocop-hq/rubocop
 gem 'rubocop', '~> 0.89.0', require: false
 
+gem 'RMagick', '~> 4.1.2'
 group :development, :test do
   # Call 'byebug' anywhere in the code to stop execution and get a debugger console
   gem 'byebug', platforms: %i[mri mingw x64_mingw]
