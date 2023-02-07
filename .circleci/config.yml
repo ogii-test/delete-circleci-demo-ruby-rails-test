@@ -50,6 +50,7 @@ jobs:
     docker:
       - *base_image
     steps:
+      - checkout
       - *set_bundle_config
       - run: node --version
       - *install_gems
