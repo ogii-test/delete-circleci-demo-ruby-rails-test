@@ -30,23 +30,6 @@ references:
       name: Restore CC cache
       key: cc-test-reporter
 
-  run_cc: &run_cc
-    run:
-      name:  Download cc-test-reporter
-      command: ./.circleci/download_cc_reporter.sh
-
-  cache_cc: &cache_cc
-    save_cache:
-      name: Store CC cache
-      key: cc-test-reporter
-      paths:
-        - ./tmp/cc-test-reporter
-  persist_workspace: &persist_workspace
-    persist_to_workspace:
-      root: *working_directory
-      paths:
-        - ./*
-
   restore_gems: &restore_gems
     restore_cache:
       keys:
@@ -60,57 +43,6 @@ references:
     run:
       name: Bundle Install
       command: bundle check --path=vendor/bundle || bundle install --path vendor/bundle
-
-  cache_gems: &cache_gems
-    save_cache:
-      key: gems-cache-v2-{{ checksum "Gemfile.lock" }}
-      paths:
-        - vendor/bundle
-
-  restore_yarn: &restore_yarn
-    restore_cache:
-      keys:
-        - yarn-cache-{{ checksum "yarn.lock" }}
-
-  install_yarn: &install_yarn
-    run:
-      name: Yarn Install
-      command: yarn install --frozen-lockfile --prefer-offline --cache-folder vendor/yarn --non-interactive
-
-  cache_yarn: &cache_yarn
-    save_cache:
-      key: yarn-cache-{{ checksum "yarn.lock" }}
-      paths:
-        - vendor/yarn
-        - node_modules
-        
-  checkout_workspace: &checkout_workspace
-    checkout
-
-  wait_for_db: &wait_for_db
-    run:
-      name: Wait for DB
-      command: dockerize -wait tcp://localhost:5432 -timeout 1m
-
-  setup_db: &setup_db
-    run:
-      name: Database setup
-      command: bin/rails db:create db:schema:load
-
-  wait_for_mysql_db: &wait_for_mysql_db
-    run:
-      name: Wait for MySql DB
-      command: dockerize -wait tcp://localhost:3306 -timeout 1m
-
-  setup_mysql_db: &setup_mysql_db
-    run:
-      name: MySql Database setup
-      command: bundle exec rake mysql:db:create mysql:db:schema:load
-
-  wait_for_redis: &wait_for_redis
-    run:
-      name: Wait for redis
-      command: dockerize -wait tcp://localhost:6379 -timeout 1m
   
 jobs:
   initial_build:
@@ -126,7 +58,4 @@ workflows:
   version: 2
   build_and_test:
     jobs:
-      - build
-      - test:
-          requires:
-            - build
+      - initial_build
